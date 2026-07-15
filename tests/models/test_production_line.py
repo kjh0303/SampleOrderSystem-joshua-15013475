@@ -186,3 +186,63 @@ def test_sync_is_idempotent_when_called_twice_at_same_time(tmp_path):
     line.sync(now)
 
     assert sample_repo.find_by_id(1).stock_qty == 5
+
+
+def test_sync_confirms_directly_without_production_when_stock_already_sufficient(tmp_path):
+    order_repo, sample_repo, queue_repo = _make_repos(tmp_path)
+    _add_sample(sample_repo, 1, stock_qty=60)
+    order = _add_producing_order(order_repo, 1, quantity=50)
+    _enqueue(queue_repo, order.order_id, 1, target_qty=100, total_production_time=100.0,
+             enqueued_at="2026-01-01 00:00")
+    line = ProductionLine(order_repo, sample_repo, queue_repo)
+
+    line.sync(datetime(2026, 1, 1, 0, 5))
+
+    assert order_repo.find_by_id(order.order_id).status == OrderStatus.CONFIRMED
+    assert sample_repo.find_by_id(1).stock_qty == 60  # target_qty(100)만큼 추가되지 않음
+    assert queue_repo.all() == []  # 생산하지 않았으므로 큐 항목은 제거된다
+
+
+def test_sync_cascades_skip_across_multiple_waiting_orders_when_stock_becomes_sufficient(tmp_path):
+    """사용자가 보고한 시나리오: 수율 0.5인 시료에 100개/50개 주문을 연속
+    승인하면 각각 200개/100개 생산이 계획된다. 100개 주문의 생산(200개)이
+    끝나 재고가 200이 되면, 50개 주문은 이미 충족되므로 100개를 추가로
+    생산하지 않고 바로 CONFIRMED로 전환돼야 한다 (재고가 300이 아니라
+    200에서 멈춰야 함).
+    """
+    order_repo, sample_repo, queue_repo = _make_repos(tmp_path)
+    sample_repo.add(1, "Sample1", 1.0, 0.5)  # 수율 50%, 재고 0
+    order1 = _add_producing_order(order_repo, 1, quantity=100)
+    order2 = _add_producing_order(order_repo, 1, quantity=50)
+    start = datetime(2026, 1, 1, 0, 0)
+    _enqueue(queue_repo, order1.order_id, 1, target_qty=200, total_production_time=200.0,
+             enqueued_at="2026-01-01 00:00", started_at=_fmt(start),
+             finished_at=_fmt(start + timedelta(minutes=200)))
+    _enqueue(queue_repo, order2.order_id, 1, target_qty=100, total_production_time=100.0,
+             enqueued_at="2026-01-01 00:01")
+    line = ProductionLine(order_repo, sample_repo, queue_repo)
+    now = start + timedelta(minutes=200)
+
+    line.sync(now)
+
+    assert order_repo.find_by_id(order1.order_id).status == OrderStatus.CONFIRMED
+    assert order_repo.find_by_id(order2.order_id).status == OrderStatus.CONFIRMED
+    assert sample_repo.find_by_id(1).stock_qty == 200  # 300이 아니라 200에서 멈춤
+    remaining = queue_repo.all()
+    assert [i.order_id for i in remaining] == [order1.order_id]  # order2 항목은 제거됨
+
+
+def test_sync_still_starts_production_when_stock_remains_insufficient(tmp_path):
+    order_repo, sample_repo, queue_repo = _make_repos(tmp_path)
+    _add_sample(sample_repo, 1, stock_qty=5)
+    order = _add_producing_order(order_repo, 1, quantity=50)
+    _enqueue(queue_repo, order.order_id, 1, target_qty=100, total_production_time=100.0,
+             enqueued_at="2026-01-01 00:00")
+    line = ProductionLine(order_repo, sample_repo, queue_repo)
+    now = datetime(2026, 1, 1, 0, 5)
+
+    line.sync(now)
+
+    item = queue_repo.all()[0]
+    assert item.started_at == _fmt(now)
+    assert order_repo.find_by_id(order.order_id).status == OrderStatus.PRODUCING

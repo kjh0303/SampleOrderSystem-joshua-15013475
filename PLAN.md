@@ -174,9 +174,27 @@ Phase 0~8을 마친 시점의 커버리지(65%, TOTAL 726 stmts / 253 miss)를
 - DoD: 테스트 76개 통과 + omit 적용 후 controllers/models 커버리지 **100%** ✅
 - 상세 Plan: [plans/phase9-coverage-refactor.md](./plans/phase9-coverage-refactor.md)
 
+### Phase 10. 동작 검증 중 발견된 버그 수정 — 재고 충분 시 생산 스킵 (완료)
+
+Phase 0~9 완료 후 수동 동작 검증 중 발견: 대기 중인 생산 큐 항목을 실제로
+시작시킬 때 그 시점의 재고를 재확인하지 않아, 앞선 주문의 생산으로 재고가
+이미 충분해진 경우에도 불필요하게 생산이 진행되는 과잉 생산 버그가 있었다
+(예: 수율 0.5인 시료에 주문 100개+50개를 연속 승인 → 각각 200개/100개
+생산 계획이 잡히는데, 100개 생산 완료로 재고가 200이 된 뒤에도 두 번째
+100개 생산을 그대로 진행해버림).
+
+- `ProductionLine.sync()`가 대기 항목을 시작시키기 직전 재고를 재확인해,
+  이미 주문 수량을 충족하면 생산 없이 큐 항목을 제거하고 주문을 바로
+  `CONFIRMED`로 전환하도록 수정
+- `ProductionQueueRepository.delete()` 추가
+- 상세 Plan: [plans/phase10-skip-production-when-stock-sufficient.md](./plans/phase10-skip-production-when-stock-sufficient.md)
+- DoD: 단위 테스트 3개 추가(신규 스킵 케이스 2개 + 회귀 확인 1개) 통과,
+  전체 스위트 79개 clean, 커버리지 100% 유지, 사용자 시나리오 재현 검증
+  (재고 200에서 멈춤, 300이 되지 않음) ✅
+
 ---
 
-**모든 Phase(0~9) 완료.**
+**모든 Phase(0~10) 완료.**
 
 ## 진행 상태
 
@@ -192,3 +210,4 @@ Phase 0~8을 마친 시점의 커버리지(65%, TOTAL 726 stmts / 253 miss)를
 | 7. 모니터링 | 완료 (단위 테스트 5개) |
 | 8. 콘솔 UI 통합 | 완료 (통합 테스트 2개) |
 | 9. 커버리지 기반 리팩토링 | 완료 (models/controllers 커버리지 100%) |
+| 10. 재고 충분 시 생산 스킵 버그 수정 | 완료 (단위 테스트 3개 추가) |

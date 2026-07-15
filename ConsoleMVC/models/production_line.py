@@ -45,6 +45,13 @@ class ProductionLine:
         시각"부터 이어서 시작한 것으로 간주해, 오랫동안 조회하지 않아
         밀린 완료 건이 여러 개 쌓여 있어도 한 번의 sync()로 순서대로 모두
         처리되도록 한다(캐스케이드).
+
+        다음 대기 항목을 실제로 시작시키기 직전에는 그 시점의 재고를
+        재확인한다. 앞선 주문의 생산으로 이미 재고가 충분해졌다면 생산을
+        시작하지 않고 큐 항목을 제거한 뒤 주문을 바로 CONFIRMED로
+        전환한다(불필요한 과잉 생산 방지). 이 확인은 대기열 순서대로
+        반복되어, 연쇄적으로 스킵되는 주문도 한 번의 sync()로 모두
+        처리된다.
         """
         now = now or datetime.now()
         clock = now
@@ -61,6 +68,13 @@ class ProductionLine:
             next_item = self._find_next_waiting_item()
             if next_item is None:
                 break
+
+            order = self._order_repo.find_by_id(next_item.order_id)
+            sample = self._sample_repo.find_by_id(next_item.sample_id)
+            if sample.stock_qty >= order.quantity:
+                self._skip_without_production(next_item, order)
+                continue
+
             enqueued_at = datetime.strptime(next_item.enqueued_at, TIME_FMT)
             self._start(next_item, max(clock, enqueued_at))
 
@@ -98,3 +112,9 @@ class ProductionLine:
         item.started_at = now.strftime(TIME_FMT)
         item.finished_at = finished_at.strftime(TIME_FMT)
         self._queue_repo.save(item)
+
+    def _skip_without_production(self, item: ProductionQueue, order) -> None:
+        """이미 재고가 충분해 생산이 필요 없어진 대기 항목을 처리한다."""
+        order.change_status(OrderStatus.CONFIRMED)
+        self._order_repo.save(order)
+        self._queue_repo.delete(item.queue_id)

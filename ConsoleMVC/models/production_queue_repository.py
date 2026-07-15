@@ -31,3 +31,6 @@ class ProductionQueueRepository:
 
     def save(self, queue_item: ProductionQueue) -> None:
         self._repo.save(queue_item)
+
+    def delete(self, queue_id: str) -> bool:
+        return self._repo.delete(queue_id)
