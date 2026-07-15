@@ -7,9 +7,9 @@ from ConsoleMVC.views.production_view import ProductionView
 class ProductionController:
     """생산 현황 확인 / 대기 주문(FIFO) 확인.
 
-    target_qty(ceil(부족분/수율)) 계산, 총 생산 시간 계산, started_at/finished_at
-    기반 완료 판단(sync_production_state) 등 실제 생산 로직은 PLAN.md Phase 5에서
-    별도 Plan.md(RED-GREEN-REVIEW)로 구현한다. 여기서는 아직 구현하지 않는다.
+    두 메뉴 모두 진입 시 `ProductionLine.sync()`를 먼저 호출해, 조회
+    시점의 현재 시각 기준으로 완료된 작업의 재고/주문 상태를 갱신하고
+    필요하면 다음 대기 항목을 시작시킨 뒤 화면을 표시한다.
     """
 
     def __init__(
@@ -25,10 +25,26 @@ class ProductionController:
         self._view = view
 
     def show_current_status(self) -> None:
-        raise NotImplementedError("생산 현황 확인은 PLAN.md Phase 5에서 구현 예정")
+        self._production_line.sync()
+        item = self._production_line.current_item()
+        if item is None:
+            self._view.show_message("현재 생산 중인 주문이 없습니다.")
+            return
+        order = self._order_repo.find_by_id(item.order_id)
+        sample = self._sample_repo.find_by_id(item.sample_id)
+        self._view.show_current_status(item, order, sample)
 
     def show_waiting_orders(self) -> None:
-        raise NotImplementedError("대기 주문(FIFO) 확인은 PLAN.md Phase 5에서 구현 예정")
+        self._production_line.sync()
+        items = self._production_line.waiting_items()
+        if not items:
+            self._view.show_message("대기 중인 생산 주문이 없습니다.")
+            return
+        rows = [
+            (item, self._order_repo.find_by_id(item.order_id), self._sample_repo.find_by_id(item.sample_id))
+            for item in items
+        ]
+        self._view.show_queue(rows)
 
     def run(self) -> None:
         while True:

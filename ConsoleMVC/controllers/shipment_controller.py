@@ -1,5 +1,6 @@
 from ConsoleMVC.models.order import OrderStatus
 from ConsoleMVC.models.order_repository import OrderRepository
+from ConsoleMVC.models.production_line import ProductionLine
 from ConsoleMVC.models.sample_repository import SampleRepository
 from ConsoleMVC.views.shipment_view import ShipmentView
 
@@ -7,12 +8,20 @@ from ConsoleMVC.views.shipment_view import ShipmentView
 class ShipmentController:
     """CONFIRMED 상태 주문에 대한 출고 처리"""
 
-    def __init__(self, order_repo: OrderRepository, sample_repo: SampleRepository, view: ShipmentView):
+    def __init__(
+        self,
+        order_repo: OrderRepository,
+        sample_repo: SampleRepository,
+        production_line: ProductionLine,
+        view: ShipmentView,
+    ):
         self._order_repo = order_repo
         self._sample_repo = sample_repo
+        self._production_line = production_line
         self._view = view
 
     def ship_order(self) -> None:
+        self._production_line.sync()
         confirmed_orders = self._order_repo.find_by_status(OrderStatus.CONFIRMED)
         self._view.show_orders(confirmed_orders)
         order_id = self._view.input_order_id()

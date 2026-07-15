@@ -1,0 +1,188 @@
+from datetime import datetime, timedelta
+
+from ConsoleMVC.models.order import OrderStatus
+from ConsoleMVC.models.order_repository import OrderRepository
+from ConsoleMVC.models.production_line import ProductionLine
+from ConsoleMVC.models.production_queue import ProductionQueue
+from ConsoleMVC.models.production_queue_repository import ProductionQueueRepository
+from ConsoleMVC.models.sample_repository import SampleRepository
+
+TIME_FMT = "%Y-%m-%d %H:%M"
+
+
+def _fmt(dt):
+    return dt.strftime(TIME_FMT)
+
+
+def _make_repos(tmp_path):
+    order_repo = OrderRepository(tmp_path / "orders.json")
+    sample_repo = SampleRepository(tmp_path / "samples.json")
+    queue_repo = ProductionQueueRepository(tmp_path / "queue.json")
+    return order_repo, sample_repo, queue_repo
+
+
+def _add_sample(sample_repo, sample_id, stock_qty=0):
+    sample = sample_repo.add(sample_id, f"Sample{sample_id}", 2.0, 0.9)
+    if stock_qty:
+        sample.add_stock(stock_qty)
+        sample_repo.save(sample)
+    return sample
+
+
+def _add_producing_order(order_repo, sample_id, quantity=10):
+    order = order_repo.add(sample_id, "Cust", quantity)
+    order.change_status(OrderStatus.PRODUCING)
+    order_repo.save(order)
+    return order
+
+
+def _enqueue(queue_repo, order_id, sample_id, target_qty, total_production_time,
+             enqueued_at, started_at=None, finished_at=None):
+    item = ProductionQueue(
+        queue_id="",
+        order_id=order_id,
+        sample_id=sample_id,
+        target_qty=target_qty,
+        total_production_time=total_production_time,
+        enqueued_at=enqueued_at,
+        started_at=started_at,
+        finished_at=finished_at,
+    )
+    return queue_repo.add(item)
+
+
+def test_sync_starts_first_waiting_item_when_none_active(tmp_path):
+    order_repo, sample_repo, queue_repo = _make_repos(tmp_path)
+    _add_sample(sample_repo, 1)
+    order = _add_producing_order(order_repo, 1)
+    _enqueue(queue_repo, order.order_id, 1, target_qty=5, total_production_time=10.0,
+             enqueued_at="2026-01-01 00:00")
+    line = ProductionLine(order_repo, sample_repo, queue_repo)
+    now = datetime(2026, 1, 1, 0, 5)
+
+    line.sync(now)
+
+    item = queue_repo.all()[0]
+    assert item.started_at == _fmt(now)
+    assert item.finished_at == _fmt(now + timedelta(minutes=10.0))
+
+
+def test_sync_does_not_start_next_item_while_current_is_still_producing(tmp_path):
+    order_repo, sample_repo, queue_repo = _make_repos(tmp_path)
+    _add_sample(sample_repo, 1)
+    order1 = _add_producing_order(order_repo, 1)
+    order2 = _add_producing_order(order_repo, 1)
+    start = datetime(2026, 1, 1, 0, 0)
+    _enqueue(queue_repo, order1.order_id, 1, target_qty=5, total_production_time=10.0,
+             enqueued_at="2026-01-01 00:00", started_at=_fmt(start),
+             finished_at=_fmt(start + timedelta(minutes=10)))
+    _enqueue(queue_repo, order2.order_id, 1, target_qty=3, total_production_time=5.0,
+             enqueued_at="2026-01-01 00:01")
+    line = ProductionLine(order_repo, sample_repo, queue_repo)
+    now = start + timedelta(minutes=5)  # 아직 완료 전
+
+    line.sync(now)
+
+    items = {i.order_id: i for i in queue_repo.all()}
+    assert items[order2.order_id].started_at is None
+    assert order_repo.find_by_id(order1.order_id).status == OrderStatus.PRODUCING
+
+
+def test_sync_completes_active_item_and_updates_stock_and_order_status_when_time_elapsed(tmp_path):
+    order_repo, sample_repo, queue_repo = _make_repos(tmp_path)
+    _add_sample(sample_repo, 1, stock_qty=0)
+    order = _add_producing_order(order_repo, 1, quantity=10)
+    start = datetime(2026, 1, 1, 0, 0)
+    _enqueue(queue_repo, order.order_id, 1, target_qty=12, total_production_time=10.0,
+             enqueued_at="2026-01-01 00:00", started_at=_fmt(start),
+             finished_at=_fmt(start + timedelta(minutes=10)))
+    line = ProductionLine(order_repo, sample_repo, queue_repo)
+    now = start + timedelta(minutes=10)  # 정확히 완료 시점
+
+    line.sync(now)
+
+    assert sample_repo.find_by_id(1).stock_qty == 12
+    assert order_repo.find_by_id(order.order_id).status == OrderStatus.CONFIRMED
+
+
+def test_sync_starts_next_waiting_item_after_completing_current(tmp_path):
+    order_repo, sample_repo, queue_repo = _make_repos(tmp_path)
+    _add_sample(sample_repo, 1)
+    order1 = _add_producing_order(order_repo, 1)
+    order2 = _add_producing_order(order_repo, 1)
+    start = datetime(2026, 1, 1, 0, 0)
+    _enqueue(queue_repo, order1.order_id, 1, target_qty=5, total_production_time=10.0,
+             enqueued_at="2026-01-01 00:00", started_at=_fmt(start),
+             finished_at=_fmt(start + timedelta(minutes=10)))
+    _enqueue(queue_repo, order2.order_id, 1, target_qty=3, total_production_time=5.0,
+             enqueued_at="2026-01-01 00:01")
+    line = ProductionLine(order_repo, sample_repo, queue_repo)
+    now = start + timedelta(minutes=10)
+
+    line.sync(now)
+
+    item2 = [i for i in queue_repo.all() if i.order_id == order2.order_id][0]
+    assert item2.started_at == _fmt(now)
+    assert item2.finished_at == _fmt(now + timedelta(minutes=5.0))
+    assert order_repo.find_by_id(order2.order_id).status == OrderStatus.PRODUCING
+
+
+def test_sync_cascades_through_multiple_already_elapsed_items(tmp_path):
+    order_repo, sample_repo, queue_repo = _make_repos(tmp_path)
+    _add_sample(sample_repo, 1)
+    order1 = _add_producing_order(order_repo, 1)
+    order2 = _add_producing_order(order_repo, 1)
+    start = datetime(2026, 1, 1, 0, 0)
+    _enqueue(queue_repo, order1.order_id, 1, target_qty=5, total_production_time=10.0,
+             enqueued_at="2026-01-01 00:00", started_at=_fmt(start),
+             finished_at=_fmt(start + timedelta(minutes=10)))
+    _enqueue(queue_repo, order2.order_id, 1, target_qty=3, total_production_time=5.0,
+             enqueued_at="2026-01-01 00:01")
+    line = ProductionLine(order_repo, sample_repo, queue_repo)
+    now = start + timedelta(hours=1)  # 둘 다 끝났을 시간
+
+    line.sync(now)
+
+    assert order_repo.find_by_id(order1.order_id).status == OrderStatus.CONFIRMED
+    assert order_repo.find_by_id(order2.order_id).status == OrderStatus.CONFIRMED
+    assert sample_repo.find_by_id(1).stock_qty == 5 + 3
+
+
+def test_current_item_returns_none_when_nothing_active(tmp_path):
+    order_repo, sample_repo, queue_repo = _make_repos(tmp_path)
+    line = ProductionLine(order_repo, sample_repo, queue_repo)
+
+    assert line.current_item() is None
+
+
+def test_waiting_items_returns_items_sorted_by_enqueued_at(tmp_path):
+    order_repo, sample_repo, queue_repo = _make_repos(tmp_path)
+    _add_sample(sample_repo, 1)
+    order1 = _add_producing_order(order_repo, 1)
+    order2 = _add_producing_order(order_repo, 1)
+    _enqueue(queue_repo, order2.order_id, 1, target_qty=3, total_production_time=5.0,
+             enqueued_at="2026-01-01 00:05")
+    _enqueue(queue_repo, order1.order_id, 1, target_qty=5, total_production_time=10.0,
+             enqueued_at="2026-01-01 00:01")
+    line = ProductionLine(order_repo, sample_repo, queue_repo)
+
+    waiting = line.waiting_items()
+
+    assert [i.order_id for i in waiting] == [order1.order_id, order2.order_id]
+
+
+def test_sync_is_idempotent_when_called_twice_at_same_time(tmp_path):
+    order_repo, sample_repo, queue_repo = _make_repos(tmp_path)
+    _add_sample(sample_repo, 1)
+    order = _add_producing_order(order_repo, 1)
+    start = datetime(2026, 1, 1, 0, 0)
+    _enqueue(queue_repo, order.order_id, 1, target_qty=5, total_production_time=10.0,
+             enqueued_at="2026-01-01 00:00", started_at=_fmt(start),
+             finished_at=_fmt(start + timedelta(minutes=10)))
+    line = ProductionLine(order_repo, sample_repo, queue_repo)
+    now = start + timedelta(minutes=10)
+
+    line.sync(now)
+    line.sync(now)
+
+    assert sample_repo.find_by_id(1).stock_qty == 5

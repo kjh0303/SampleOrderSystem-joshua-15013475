@@ -1,3 +1,4 @@
+from ConsoleMVC.models.production_line import ProductionLine
 from ConsoleMVC.models.sample_repository import SampleRepository
 from ConsoleMVC.views.sample_view import SampleView
 
@@ -5,8 +6,9 @@ from ConsoleMVC.views.sample_view import SampleView
 class SampleController:
     """시료 등록 / 목록 조회 / 이름 검색을 처리"""
 
-    def __init__(self, sample_repo: SampleRepository, view: SampleView):
+    def __init__(self, sample_repo: SampleRepository, production_line: ProductionLine, view: SampleView):
         self._repo = sample_repo
+        self._production_line = production_line
         self._view = view
 
     def register_sample(self) -> None:
@@ -23,10 +25,12 @@ class SampleController:
         self._view.show_message(f"[등록 완료] #{sample.sample_id} {sample.name}")
 
     def list_samples(self) -> None:
+        self._production_line.sync()
         samples = self._repo.all()
         self._view.show_samples(samples)
 
     def search_samples(self) -> None:
+        self._production_line.sync()
         keyword = self._view.input_search_keyword()
         results = self._repo.find_by_name(keyword)
         self._view.show_samples(results)

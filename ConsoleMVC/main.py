@@ -20,14 +20,14 @@ def main() -> None:
     sample_repo = SampleRepository()
     order_repo = OrderRepository()
     queue_repo = ProductionQueueRepository()
-    production_line = ProductionLine()
+    production_line = ProductionLine(order_repo, sample_repo, queue_repo)
 
     main_view = MainView()
 
-    sample_controller = SampleController(sample_repo, SampleView())
-    order_controller = OrderController(order_repo, sample_repo, queue_repo, OrderView())
+    sample_controller = SampleController(sample_repo, production_line, SampleView())
+    order_controller = OrderController(order_repo, sample_repo, queue_repo, production_line, OrderView())
     monitoring_controller = MonitoringController(order_repo, sample_repo, MonitoringView())
-    shipment_controller = ShipmentController(order_repo, sample_repo, ShipmentView())
+    shipment_controller = ShipmentController(order_repo, sample_repo, production_line, ShipmentView())
     production_controller = ProductionController(production_line, order_repo, sample_repo, ProductionView())
 
     menu_actions = {

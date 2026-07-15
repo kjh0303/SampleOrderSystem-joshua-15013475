@@ -2,6 +2,7 @@ import math
 
 from ConsoleMVC.models.order import OrderStatus
 from ConsoleMVC.models.order_repository import OrderRepository
+from ConsoleMVC.models.production_line import ProductionLine
 from ConsoleMVC.models.production_queue import ProductionQueue
 from ConsoleMVC.models.production_queue_repository import ProductionQueueRepository
 from ConsoleMVC.models.sample_repository import SampleRepository
@@ -16,11 +17,13 @@ class OrderController:
         order_repo: OrderRepository,
         sample_repo: SampleRepository,
         queue_repo: ProductionQueueRepository,
+        production_line: ProductionLine,
         view: OrderView,
     ):
         self._order_repo = order_repo
         self._sample_repo = sample_repo
         self._queue_repo = queue_repo
+        self._production_line = production_line
         self._view = view
 
     def receive_order(self) -> None:
@@ -40,8 +43,9 @@ class OrderController:
         """재고가 충분하면 즉시 CONFIRMED로, 부족하면 부족분을 수율로 나눈
         실 생산량을 ProductionQueue에 등록하고 PRODUCING으로 전환한다.
 
-        started_at/finished_at 설정과 생산 완료 판단(sync_production_state),
-        FIFO 직렬 처리는 PLAN.md Phase 5에서 구현한다.
+        등록 직후 ProductionLine.sync()를 호출해, 생산 라인이 비어 있으면
+        그 자리에서 바로 생산을 시작시킨다. 이미 다른 작업이 진행 중이면
+        새 항목은 대기(WAITING) 상태로 남는다.
         """
         self._view.show_orders(self._order_repo.find_by_status(OrderStatus.RESERVED))
         order_id = self._view.input_order_id("승인")
@@ -73,6 +77,7 @@ class OrderController:
         self._queue_repo.add(queue_item)
         order.change_status(OrderStatus.PRODUCING)
         self._order_repo.save(order)
+        self._production_line.sync()
         self._view.show_message(f"[승인 완료] 주문 #{order.order_id} -> 재고 부족, 생산 대기열 등록")
 
     def reject_order(self) -> None:

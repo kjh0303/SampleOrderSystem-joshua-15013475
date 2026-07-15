@@ -3,6 +3,7 @@ import math
 from ConsoleMVC.controllers.order_controller import OrderController
 from ConsoleMVC.models.order import OrderStatus
 from ConsoleMVC.models.order_repository import OrderRepository
+from ConsoleMVC.models.production_line import ProductionLine
 from ConsoleMVC.models.production_queue_repository import ProductionQueueRepository
 from ConsoleMVC.models.sample_repository import SampleRepository
 
@@ -31,8 +32,9 @@ def _make_controller(tmp_path, **view_kwargs):
     order_repo = OrderRepository(tmp_path / "orders.json")
     sample_repo = SampleRepository(tmp_path / "samples.json")
     queue_repo = ProductionQueueRepository(tmp_path / "queue.json")
+    production_line = ProductionLine(order_repo, sample_repo, queue_repo)
     view = FakeOrderView(**view_kwargs)
-    controller = OrderController(order_repo, sample_repo, queue_repo, view)
+    controller = OrderController(order_repo, sample_repo, queue_repo, production_line, view)
     return controller, order_repo, sample_repo, queue_repo, view
 
 
@@ -100,7 +102,42 @@ def test_approve_order_enqueues_production_when_stock_is_insufficient(tmp_path):
     assert item.sample_id == 1
     assert item.target_qty == expected_target_qty
     assert item.total_production_time == 2.0 * expected_target_qty
-    assert item.started_at is None
+    # 생산 라인이 비어 있으므로 승인 직후 즉시 생산이 시작된다.
+    assert item.started_at is not None
+
+
+def test_approve_order_starts_production_immediately_when_line_is_idle(tmp_path):
+    controller, order_repo, sample_repo, queue_repo, view = _make_controller(tmp_path)
+    _add_sample_with_stock(sample_repo, 1, "WaferA", 2.0, 0.8, stock_qty=5)
+    order = order_repo.add(1, "CustA", 20)
+    view.order_id_input = order.order_id
+
+    controller.approve_order()
+
+    item = queue_repo.all()[0]
+    assert item.started_at is not None
+    assert item.finished_at is not None
+
+
+def test_approve_order_keeps_new_item_waiting_when_line_is_busy(tmp_path):
+    controller, order_repo, sample_repo, queue_repo, view = _make_controller(tmp_path)
+    _add_sample_with_stock(sample_repo, 1, "WaferA", 2.0, 0.8, stock_qty=5)
+
+    # 이미 진행 중인 주문을 하나 만들어 생산 라인을 점유시킨다.
+    busy_order = order_repo.add(1, "CustBusy", 20)
+    view.order_id_input = busy_order.order_id
+    controller.approve_order()
+    busy_item = queue_repo.all()[0]
+    assert busy_item.started_at is not None  # 라인 점유 확인
+
+    # 새 주문을 승인해도 라인이 바쁘므로 대기 상태로 남아야 한다.
+    new_order = order_repo.add(1, "CustNew", 30)
+    view.order_id_input = new_order.order_id
+
+    controller.approve_order()
+
+    new_item = [i for i in queue_repo.all() if i.order_id == new_order.order_id][0]
+    assert new_item.started_at is None
 
 
 def test_approve_order_shows_message_when_order_not_found_or_not_reserved(tmp_path):

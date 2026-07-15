@@ -81,30 +81,39 @@
 - 상세 Plan: [plans/phase4-order-approval.md](./plans/phase4-order-approval.md)
 - DoD: 7개 테스트 통과 + 콘솔 스모크 테스트로 실제 분기 확인 ✅
 
-### Phase 5. 생산 라인
+### Phase 5. 생산 라인 (완료)
 
-- 생산량/생산 시간 계산 (`ceil(부족분 / 수율)`, `평균 생산시간 * 실 생산량`)
-- 생산 큐(FIFO) 및 대기 주문 확인. 생산 라인은 직렬 처리(동시 1개 작업)
-- `ProductionQueue`에는 `status` 컬럼을 두지 않고 `started_at`/`finished_at`만
-  저장한다. WAITING/PRODUCING/DONE 여부는 조회 시점에 두 필드와 현재
-  시각을 비교해 판단한다.
-- **타이머/스케줄러는 사용하지 않는다.** 콘솔 조작이 들어올 때마다 현재
-  시각과 진행 중인 작업의 `finished_at`을 비교해 동기화하는 함수(예:
-  `sync_production_state()`)를 만들고, 재고/생산 현황 관련 메뉴 진입 시
-  공통으로 호출한다.
-  - `now >= finished_at`이면 재고 반영 + 주문 상태 전환
-    (`PRODUCING` → `CONFIRMED`) + 다음 대기 항목의 `started_at = now` 설정을
-    처리하고, 완료 조건을 만족하는 항목이 없을 때까지 반복한다.
-- 생산 현황 표기
-- DoD: 생산량 계산 단위 테스트 통과, FIFO 큐 동작(직렬 처리) 검증,
-  `started_at`/`finished_at` 기반 상태 판단 로직 테스트 통과, 조회 시점
-  동기화 함수가 경과 시간에 따라 재고/주문 상태를 올바르게 갱신하는지에
-  대한 테스트 통과 (테스트에서는 `started_at`을 과거 시각으로 주입해
-  경과 시간을 시뮬레이션)
+- `ProductionLine.sync(now)` 구현: 조회 시점마다 진행 중인 작업을 완료
+  처리(재고 반영 + 주문 `PRODUCING`→`CONFIRMED`)하고, 빈 자리가 생기면
+  대기열에서 다음 항목을 시작(직렬 처리, 동시 1개). "이미 처리됨" 판단은
+  별도 플래그 없이 연결된 주문 상태로 판단해 멱등성 확보
+  - 완료 후 다음 항목은 "지금"이 아니라 "직전 작업이 끝난 시각"부터 이어
+    붙여 시작 — 오래 조회하지 않아 밀린 완료 건이 여러 개여도 한 번의
+    `sync()`로 순서대로 모두 처리(캐스케이드)되도록 함
+- `current_item()`/`waiting_items()`(FIFO) 제공, `ProductionController`/
+  `ProductionView`에서 화면 표시 구현
+- `main.py`에서 `ProductionLine(order_repo, sample_repo, queue_repo)`로 배선
+- 상세 Plan: [plans/phase5-production-line.md](./plans/phase5-production-line.md)
+- DoD: 단위 테스트 11개 통과 + 콘솔에서 실제 완료 처리(재고 증가, 상태
+  전환) 수동 확인 ✅
+
+**Follow-up (사용자 피드백 반영, 완료)**: "생산 라인" 메뉴는 조회 전용이지
+생산을 트리거하는 메뉴가 아니라는 피드백에 따라 동작을 조정했다.
+- `OrderController.approve_order`가 재고 부족으로 큐에 등록한 **직후**
+  `ProductionLine.sync()`를 호출해, 생산 라인이 비어 있으면 그 자리에서
+  바로 생산을 시작한다 (더 이상 "생산 라인" 메뉴 진입을 기다리지 않음)
+- `sync()` 호출 지점을 시료 관리(조회/검색) · 생산 라인(조회) · 출고 처리
+  3곳으로 확장해, 사용자가 어떤 관련 화면을 보든 최신 재고/주문 상태가
+  반영되도록 함
+- 상세 Plan: [plans/phase5-followup-eager-start-and-sync-hooks.md](./plans/phase5-followup-eager-start-and-sync-hooks.md)
+- DoD: 신규/보강 테스트 8개 통과, 콘솔에서 승인 직후 즉시 시작 확인 ✅
 
 ### Phase 6. 출고 처리
 
 - `CONFIRMED` 주문 출고 실행 → `RELEASE` 전환
+- (Phase 5 follow-up에서 sync 훅 배선 + 최소 테스트 1개는 이미 추가됨,
+  `tests/controllers/test_shipment_controller.py`) — 정상 출고/취소/잘못된
+  주문 등 나머지 케이스는 이번 Phase에서 보강
 - DoD: 출고 처리 단위 테스트 통과
 
 ### Phase 7. 모니터링
@@ -128,7 +137,7 @@
 | 2. 도메인 모델 & 데이터 저장소 | 완료 (단위 테스트 24개) |
 | 3. 시료 관리 | 완료 (단위 테스트 5개) |
 | 4. 주문 | 완료 (단위 테스트 7개, 재고 분기 로직 구현) |
-| 5. 생산 라인 | 미착수 (placeholder만 존재) |
+| 5. 생산 라인 | 완료 (단위 테스트 11개) |
 | 6. 출고 처리 | 초안 있음 (PoC 이관 완료, 테스트 없음) |
 | 7. 모니터링 | 초안 있음 (여유/부족/고갈 판정 미구현) |
 | 8. 콘솔 UI 통합 | 초안 있음 (메뉴 연결은 되어 있음) |

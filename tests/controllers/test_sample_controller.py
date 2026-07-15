@@ -1,5 +1,14 @@
+from datetime import datetime, timedelta
+
 from ConsoleMVC.controllers.sample_controller import SampleController
+from ConsoleMVC.models.order import OrderStatus
+from ConsoleMVC.models.order_repository import OrderRepository
+from ConsoleMVC.models.production_line import ProductionLine
+from ConsoleMVC.models.production_queue import ProductionQueue
+from ConsoleMVC.models.production_queue_repository import ProductionQueueRepository
 from ConsoleMVC.models.sample_repository import SampleRepository
+
+TIME_FMT = "%Y-%m-%d %H:%M"
 
 
 class FakeSampleView:
@@ -22,10 +31,20 @@ class FakeSampleView:
         self.messages.append(message)
 
 
-def test_register_sample_adds_to_repository_and_shows_success_message(tmp_path):
+def _make_controller(tmp_path, **view_kwargs):
     repo = SampleRepository(tmp_path / "samples.json")
-    view = FakeSampleView(new_sample_input=(1, "WaferA", 2.0, 0.9))
-    controller = SampleController(repo, view)
+    order_repo = OrderRepository(tmp_path / "orders.json")
+    queue_repo = ProductionQueueRepository(tmp_path / "queue.json")
+    production_line = ProductionLine(order_repo, repo, queue_repo)
+    view = FakeSampleView(**view_kwargs)
+    controller = SampleController(repo, production_line, view)
+    return controller, repo, order_repo, queue_repo, view
+
+
+def test_register_sample_adds_to_repository_and_shows_success_message(tmp_path):
+    controller, repo, order_repo, queue_repo, view = _make_controller(
+        tmp_path, new_sample_input=(1, "WaferA", 2.0, 0.9)
+    )
 
     controller.register_sample()
 
@@ -36,9 +55,9 @@ def test_register_sample_adds_to_repository_and_shows_success_message(tmp_path):
 
 
 def test_register_sample_shows_cancel_message_when_input_is_none(tmp_path):
-    repo = SampleRepository(tmp_path / "samples.json")
-    view = FakeSampleView(new_sample_input=None)
-    controller = SampleController(repo, view)
+    controller, repo, order_repo, queue_repo, view = _make_controller(
+        tmp_path, new_sample_input=None
+    )
 
     controller.register_sample()
 
@@ -47,10 +66,10 @@ def test_register_sample_shows_cancel_message_when_input_is_none(tmp_path):
 
 
 def test_register_sample_shows_error_message_on_duplicate_id(tmp_path):
-    repo = SampleRepository(tmp_path / "samples.json")
+    controller, repo, order_repo, queue_repo, view = _make_controller(
+        tmp_path, new_sample_input=(1, "WaferB", 3.0, 0.8)
+    )
     repo.add(1, "WaferA", 2.0, 0.9)
-    view = FakeSampleView(new_sample_input=(1, "WaferB", 3.0, 0.8))
-    controller = SampleController(repo, view)
 
     controller.register_sample()
 
@@ -59,11 +78,9 @@ def test_register_sample_shows_error_message_on_duplicate_id(tmp_path):
 
 
 def test_list_samples_shows_all_samples_from_repository(tmp_path):
-    repo = SampleRepository(tmp_path / "samples.json")
+    controller, repo, order_repo, queue_repo, view = _make_controller(tmp_path)
     repo.add(1, "WaferA", 2.0, 0.9)
     repo.add(2, "WaferB", 3.0, 0.8)
-    view = FakeSampleView()
-    controller = SampleController(repo, view)
 
     controller.list_samples()
 
@@ -71,12 +88,58 @@ def test_list_samples_shows_all_samples_from_repository(tmp_path):
 
 
 def test_search_samples_shows_only_matching_samples(tmp_path):
-    repo = SampleRepository(tmp_path / "samples.json")
+    controller, repo, order_repo, queue_repo, view = _make_controller(
+        tmp_path, search_keyword="wafer"
+    )
     repo.add(1, "8inch Wafer", 2.0, 0.9)
     repo.add(2, "SiC Sample", 2.0, 0.9)
-    view = FakeSampleView(search_keyword="wafer")
-    controller = SampleController(repo, view)
 
     controller.search_samples()
 
     assert [s.sample_id for s in view.shown_samples] == [1]
+
+
+def _enqueue_already_finished_item(queue_repo, order_id, sample_id, target_qty):
+    start = datetime(2020, 1, 1, 0, 0)
+    item = ProductionQueue(
+        queue_id="",
+        order_id=order_id,
+        sample_id=sample_id,
+        target_qty=target_qty,
+        total_production_time=1.0,
+        enqueued_at=start.strftime(TIME_FMT),
+        started_at=start.strftime(TIME_FMT),
+        finished_at=(start + timedelta(minutes=1)).strftime(TIME_FMT),
+    )
+    queue_repo.add(item)
+
+
+def test_list_samples_reflects_completed_production_via_sync(tmp_path):
+    controller, repo, order_repo, queue_repo, view = _make_controller(tmp_path)
+    repo.add(1, "WaferA", 2.0, 0.9)
+    order = order_repo.add(1, "CustA", 10)
+    order.change_status(OrderStatus.PRODUCING)
+    order_repo.save(order)
+    _enqueue_already_finished_item(queue_repo, order.order_id, 1, target_qty=7)
+
+    controller.list_samples()
+
+    assert order_repo.find_by_id(order.order_id).status == OrderStatus.CONFIRMED
+    shown = {s.sample_id: s.stock_qty for s in view.shown_samples}
+    assert shown[1] == 7
+
+
+def test_search_samples_reflects_completed_production_via_sync(tmp_path):
+    controller, repo, order_repo, queue_repo, view = _make_controller(
+        tmp_path, search_keyword="wafer"
+    )
+    repo.add(1, "8inch Wafer", 2.0, 0.9)
+    order = order_repo.add(1, "CustA", 10)
+    order.change_status(OrderStatus.PRODUCING)
+    order_repo.save(order)
+    _enqueue_already_finished_item(queue_repo, order.order_id, 1, target_qty=4)
+
+    controller.search_samples()
+
+    assert order_repo.find_by_id(order.order_id).status == OrderStatus.CONFIRMED
+    assert view.shown_samples[0].stock_qty == 4
