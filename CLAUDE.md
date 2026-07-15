@@ -180,6 +180,39 @@ CONFIRMED 상태 주문에 대해 출고를 실행.
 
 - Python, 콘솔(CLI) 기반 프로그램
 
+## 디렉토리 구조
+
+PoC(`ConsoleMVC/`, `Data/`) 정합성 점검(PLAN.md Phase 0) 결과, `Data/`의
+JSON 기반 모델/저장소를 `ConsoleMVC/models/`로 흡수 통합했다. `Data/`
+폴더는 제거되었다.
+
+```
+ConsoleMVC/
+├── main.py
+├── data/                        # JSON 파일 저장소 (samples/orders/production_queue)
+├── controllers/                 # 메뉴별 컨트롤러
+├── views/                       # 콘솔 입출력 (비즈니스 로직 없음)
+└── models/
+    ├── sample.py                # Sample dataclass
+    ├── order.py                 # Order dataclass, OrderStatus
+    ├── production_queue.py      # ProductionQueue dataclass
+    ├── json_repository.py       # 범용 JSON CRUD 리포지토리
+    ├── sample_repository.py
+    ├── order_repository.py
+    ├── production_queue_repository.py  # Phase 5에서 사용 예정 (아직 미연결)
+    └── production_line.py       # Phase 5에서 재구현 예정 (현재 placeholder)
+```
+
+시료 관리 / 주문 접수·거절 / 출고 처리는 PoC 로직이 문서 규칙과 일치해
+그대로 유지했다. 아래 항목은 PoC 구현이 문서 규칙과 어긋나 있어 자리표시자
+(`NotImplementedError`)로 대체했고, 해당 PLAN.md Phase에서 별도 Plan.md로
+다시 구현한다.
+
+- 주문 승인 시 재고 충분/부족에 따른 CONFIRMED/PRODUCING 분기 (Phase 4)
+- 생산 라인의 target_qty/총 생산 시간 계산, started_at/finished_at 기반
+  완료 판단(sync_production_state), FIFO 직렬 처리 (Phase 5)
+- 재고 여유/부족/고갈 상태 판정은 아직 표시만 없고 조회 자체는 동작한다 (Phase 7)
+
 ## 개발 주안점
 
 1. **문서 관리**: `CLAUDE.md`, `PRD.md`, `PLAN.md`를 함께 관리한다.
