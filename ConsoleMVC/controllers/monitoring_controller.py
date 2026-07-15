@@ -1,6 +1,6 @@
-from models.order_repository import OrderRepository
-from models.sample_repository import SampleRepository
-from views.monitoring_view import MonitoringView
+from ConsoleMVC.models.order_repository import OrderRepository
+from ConsoleMVC.models.sample_repository import SampleRepository
+from ConsoleMVC.views.monitoring_view import MonitoringView
 
 
 class MonitoringController:

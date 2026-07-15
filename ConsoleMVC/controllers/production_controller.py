@@ -1,7 +1,7 @@
-from models.order_repository import OrderRepository
-from models.production_line import ProductionLine
-from models.sample_repository import SampleRepository
-from views.production_view import ProductionView
+from ConsoleMVC.models.order_repository import OrderRepository
+from ConsoleMVC.models.production_line import ProductionLine
+from ConsoleMVC.models.sample_repository import SampleRepository
+from ConsoleMVC.views.production_view import ProductionView
 
 
 class ProductionController:

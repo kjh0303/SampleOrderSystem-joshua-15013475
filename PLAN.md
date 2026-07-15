@@ -48,14 +48,17 @@
 - 상세 Plan: [plans/phase1-project-setup.md](./plans/phase1-project-setup.md)
 - DoD: `pytest` 실행 시 정상 동작 + 커버리지 리포트 출력 ✅ (1 passed, TOTAL 3%)
 
-### Phase 2. 도메인 모델 & 데이터 저장소
+### Phase 2. 도메인 모델 & 데이터 저장소 (완료)
 
-- `Sample`, `Order`(+`OrderStatus`), `ProductionQueue` 3개 모델 구현
-  (스키마는 CLAUDE.md 참고)
-- JSON 파일(`samples.json`, `orders.json`, `production_queue.json`) 기반
-  저장소(repository) 계층 구현 (읽기/쓰기)
-- 상태 전이 규칙을 검증하는 단위 테스트 작성
-- DoD: 상태 전이 규칙에 대한 테스트 통과, 3개 모델의 CRUD 동작 테스트 통과
+- `Sample`, `Order`(+`OrderStatus`), `ProductionQueue` 3개 모델(Phase 0에서
+  이관)에 대한 단위 테스트 24개 작성 (`tests/models/`)
+- 테스트 작성 중 `ConsoleMVC` 내부 import가 실행 방식에 따라 깨지는 문제를
+  발견해, `models`/`controllers`/`views`/`main.py` 전체를 `ConsoleMVC.`
+  절대경로 import로 통일 (사용자 확인 후 진행). 콘솔 앱 실행 방법이
+  `python -m ConsoleMVC.main`(프로젝트 루트에서)으로 변경됨 — 상세는
+  [CLAUDE.md](./CLAUDE.md#import-컨벤션--실행-방법) 참고
+- 상세 Plan: [plans/phase2-domain-model-repository-tests.md](./plans/phase2-domain-model-repository-tests.md)
+- DoD: 24개 테스트 통과, 커버리지 3%→35% ✅
 
 ### Phase 3. 시료 관리
 
@@ -114,7 +117,7 @@
 |---|---|
 | 0. 기존 PoC 정합성 점검 | 완료 |
 | 1. 프로젝트 세팅 | 완료 (pytest 하네스 구성 완료) |
-| 2. 도메인 모델 & 데이터 저장소 | 초안 있음 (PoC 이관 완료, 테스트 없음) |
+| 2. 도메인 모델 & 데이터 저장소 | 완료 (단위 테스트 24개) |
 | 3. 시료 관리 | 초안 있음 (PoC 이관 완료, 테스트 없음) |
 | 4. 주문 | 초안 있음 (접수/거절만, 승인 분기 로직 미구현) |
 | 5. 생산 라인 | 미착수 (placeholder만 존재) |

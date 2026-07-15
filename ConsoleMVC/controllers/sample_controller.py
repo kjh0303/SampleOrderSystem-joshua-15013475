@@ -1,5 +1,5 @@
-from models.sample_repository import SampleRepository
-from views.sample_view import SampleView
+from ConsoleMVC.models.sample_repository import SampleRepository
+from ConsoleMVC.views.sample_view import SampleView
 
 
 class SampleController:

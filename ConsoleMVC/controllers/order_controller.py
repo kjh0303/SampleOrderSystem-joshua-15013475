@@ -1,8 +1,8 @@
-from models.order import OrderStatus
-from models.order_repository import OrderRepository
-from models.production_line import ProductionLine
-from models.sample_repository import SampleRepository
-from views.order_view import OrderView
+from ConsoleMVC.models.order import OrderStatus
+from ConsoleMVC.models.order_repository import OrderRepository
+from ConsoleMVC.models.production_line import ProductionLine
+from ConsoleMVC.models.sample_repository import SampleRepository
+from ConsoleMVC.views.order_view import OrderView
 
 
 class OrderController:

@@ -1,6 +1,6 @@
 from typing import List, Optional, Tuple
 
-from models.sample import Sample
+from ConsoleMVC.models.sample import Sample
 
 
 class SampleView:

@@ -1,7 +1,7 @@
 from typing import Dict, List
 
-from models.order import Order
-from models.sample import Sample
+from ConsoleMVC.models.order import Order
+from ConsoleMVC.models.sample import Sample
 
 _DISPLAY_STATUS_ORDER = ["RESERVED", "CONFIRMED", "PRODUCING", "RELEASE"]
 

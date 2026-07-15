@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import List, Optional
 
-from models.json_repository import JsonRepository
-from models.production_queue import ProductionQueue
+from ConsoleMVC.models.json_repository import JsonRepository
+from ConsoleMVC.models.production_queue import ProductionQueue
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 

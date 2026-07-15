@@ -213,6 +213,17 @@ ConsoleMVC/
   완료 판단(sync_production_state), FIFO 직렬 처리 (Phase 5)
 - 재고 여유/부족/고갈 상태 판정은 아직 표시만 없고 조회 자체는 동작한다 (Phase 7)
 
+### import 컨벤션 & 실행 방법
+
+Phase 2에서 `tests/`가 `ConsoleMVC.models...`를 import하지 못하는 문제를
+발견해, `ConsoleMVC` 내부(`models`/`controllers`/`views`/`main.py`)의 모든
+상호 참조를 **`ConsoleMVC.` 절대경로**로 통일했다 (예:
+`from ConsoleMVC.models.order import OrderStatus`).
+
+- 콘솔 앱 실행: 프로젝트 루트에서 `python -m ConsoleMVC.main`
+  (더 이상 `ConsoleMVC` 디렉토리 안에서 `python main.py`로 실행하지 않는다)
+- 테스트: `tests/`에서도 동일하게 `from ConsoleMVC.models.x import Y` 형태로 import
+
 ## 개발 주안점
 
 1. **문서 관리**: `CLAUDE.md`, `PRD.md`, `PLAN.md`를 함께 관리한다.

@@ -1,6 +1,6 @@
 from typing import List, Optional, Tuple
 
-from models.order import Order
+from ConsoleMVC.models.order import Order
 
 
 class OrderView:

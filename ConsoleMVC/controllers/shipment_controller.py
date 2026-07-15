@@ -1,7 +1,7 @@
-from models.order import OrderStatus
-from models.order_repository import OrderRepository
-from models.sample_repository import SampleRepository
-from views.shipment_view import ShipmentView
+from ConsoleMVC.models.order import OrderStatus
+from ConsoleMVC.models.order_repository import OrderRepository
+from ConsoleMVC.models.sample_repository import SampleRepository
+from ConsoleMVC.views.shipment_view import ShipmentView
 
 
 class ShipmentController:
