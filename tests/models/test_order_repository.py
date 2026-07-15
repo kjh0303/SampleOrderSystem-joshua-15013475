@@ -49,3 +49,39 @@ def test_count_by_status_counts_every_status_including_zero(tmp_path):
     assert counts[OrderStatus.REJECTED] == 0
     assert counts[OrderStatus.PRODUCING] == 0
     assert counts[OrderStatus.RELEASE] == 0
+
+
+def test_sum_confirmed_quantity_sums_only_confirmed_orders_for_the_sample(tmp_path):
+    repo = OrderRepository(tmp_path / "orders.json")
+
+    confirmed1 = repo.add(1, "CustA", 100)
+    confirmed1.change_status(OrderStatus.CONFIRMED)
+    repo.save(confirmed1)
+
+    confirmed2 = repo.add(1, "CustB", 30)
+    confirmed2.change_status(OrderStatus.CONFIRMED)
+    repo.save(confirmed2)
+
+    # 다른 시료의 CONFIRMED 주문은 제외
+    other_sample_confirmed = repo.add(2, "CustC", 999)
+    other_sample_confirmed.change_status(OrderStatus.CONFIRMED)
+    repo.save(other_sample_confirmed)
+
+    # 같은 시료지만 CONFIRMED가 아닌 주문은 제외
+    repo.add(1, "CustD", 500)  # RESERVED
+
+    total = repo.sum_confirmed_quantity(1)
+
+    assert total == 130
+
+
+def test_sum_confirmed_quantity_excludes_given_order_id(tmp_path):
+    repo = OrderRepository(tmp_path / "orders.json")
+
+    confirmed = repo.add(1, "CustA", 100)
+    confirmed.change_status(OrderStatus.CONFIRMED)
+    repo.save(confirmed)
+
+    total = repo.sum_confirmed_quantity(1, exclude_order_id=confirmed.order_id)
+
+    assert total == 0

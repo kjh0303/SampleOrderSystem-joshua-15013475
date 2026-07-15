@@ -46,9 +46,10 @@ class ProductionLine:
         밀린 완료 건이 여러 개 쌓여 있어도 한 번의 sync()로 순서대로 모두
         처리되도록 한다(캐스케이드).
 
-        다음 대기 항목을 실제로 시작시키기 직전에는 그 시점의 재고를
-        재확인한다. 앞선 주문의 생산으로 이미 재고가 충분해졌다면 생산을
-        시작하지 않고 큐 항목을 제거한 뒤 주문을 바로 CONFIRMED로
+        다음 대기 항목을 실제로 시작시키기 직전에는 그 시점의 가용
+        재고(= 재고 - 아직 출고되지 않은 다른 CONFIRMED 주문 수량 합)를
+        재확인한다. 앞선 주문의 생산으로 이미 가용 재고가 충분해졌다면
+        생산을 시작하지 않고 큐 항목을 제거한 뒤 주문을 바로 CONFIRMED로
         전환한다(불필요한 과잉 생산 방지). 이 확인은 대기열 순서대로
         반복되어, 연쇄적으로 스킵되는 주문도 한 번의 sync()로 모두
         처리된다.
@@ -71,7 +72,11 @@ class ProductionLine:
 
             order = self._order_repo.find_by_id(next_item.order_id)
             sample = self._sample_repo.find_by_id(next_item.sample_id)
-            if sample.stock_qty >= order.quantity:
+            reserved_by_others = self._order_repo.sum_confirmed_quantity(
+                sample.sample_id, exclude_order_id=order.order_id
+            )
+            available_stock = sample.stock_qty - reserved_by_others
+            if available_stock >= order.quantity:
                 self._skip_without_production(next_item, order)
                 continue
 

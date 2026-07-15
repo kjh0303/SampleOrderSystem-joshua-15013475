@@ -40,7 +40,8 @@ class OrderController:
         self._view.show_message(f"[접수 완료] 주문 #{order.order_id}")
 
     def approve_order(self) -> None:
-        """재고가 충분하면 즉시 CONFIRMED로, 부족하면 부족분을 수율로 나눈
+        """가용 재고(= 재고 - 아직 출고되지 않은 다른 CONFIRMED 주문 수량
+        합)가 충분하면 즉시 CONFIRMED로, 부족하면 부족분을 수율로 나눈
         실 생산량을 ProductionQueue에 등록하고 PRODUCING으로 전환한다.
 
         등록 직후 ProductionLine.sync()를 호출해, 생산 라인이 비어 있으면
@@ -58,13 +59,17 @@ class OrderController:
             return
 
         sample = self._sample_repo.find_by_id(order.sample_id)
-        if sample.stock_qty >= order.quantity:
+        reserved_by_others = self._order_repo.sum_confirmed_quantity(
+            sample.sample_id, exclude_order_id=order.order_id
+        )
+        available_stock = sample.stock_qty - reserved_by_others
+        if available_stock >= order.quantity:
             order.change_status(OrderStatus.CONFIRMED)
             self._order_repo.save(order)
             self._view.show_message(f"[승인 완료] 주문 #{order.order_id} -> 재고 충분, CONFIRMED 전환")
             return
 
-        shortage = order.quantity - sample.stock_qty
+        shortage = order.quantity - available_stock
         target_qty = math.ceil(shortage / sample.yield_rate)
         total_production_time = sample.avg_production_time * target_qty
         queue_item = ProductionQueue(

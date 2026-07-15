@@ -208,6 +208,49 @@ def test_reject_order_shows_cancel_message_when_order_id_input_is_none(tmp_path)
     assert view.messages == ["거절이 취소되었습니다."]
 
 
+def test_approve_order_goes_to_producing_when_stock_is_claimed_by_other_unshipped_confirmed_order(tmp_path):
+    """다른 주문(주문1, 100개)이 이미 CONFIRMED됐지만 아직 출고되지
+    않았다면, 그 수량은 새 주문 승인 시 가용 재고에서 빠져야 한다."""
+    controller, order_repo, sample_repo, queue_repo, view = _make_controller(tmp_path)
+    _add_sample_with_stock(sample_repo, 1, "WaferA", 1.0, 0.5, stock_qty=200)
+    other_confirmed = order_repo.add(1, "CustA", 100)
+    other_confirmed.change_status(OrderStatus.CONFIRMED)
+    order_repo.save(other_confirmed)
+
+    new_order = order_repo.add(1, "CustB", 101)
+    view.order_id_input = new_order.order_id
+
+    controller.approve_order()
+
+    updated = order_repo.find_by_id(new_order.order_id)
+    assert updated.status == OrderStatus.PRODUCING
+
+    queue_items = [i for i in queue_repo.all() if i.order_id == new_order.order_id]
+    assert len(queue_items) == 1
+    item = queue_items[0]
+    # 가용 재고 = 200 - 100(다른 CONFIRMED 주문) = 100, 부족분 = 101 - 100 = 1
+    expected_target_qty = math.ceil(1 / 0.5)
+    assert item.target_qty == expected_target_qty
+    assert item.total_production_time == 1.0 * expected_target_qty
+
+
+def test_approve_order_still_confirms_when_available_stock_after_other_confirmed_orders_is_sufficient(tmp_path):
+    controller, order_repo, sample_repo, queue_repo, view = _make_controller(tmp_path)
+    _add_sample_with_stock(sample_repo, 1, "WaferA", 1.0, 0.5, stock_qty=200)
+    other_confirmed = order_repo.add(1, "CustA", 100)
+    other_confirmed.change_status(OrderStatus.CONFIRMED)
+    order_repo.save(other_confirmed)
+
+    new_order = order_repo.add(1, "CustB", 100)  # 가용 재고(100)와 정확히 일치
+    view.order_id_input = new_order.order_id
+
+    controller.approve_order()
+
+    updated = order_repo.find_by_id(new_order.order_id)
+    assert updated.status == OrderStatus.CONFIRMED
+    assert queue_repo.all() == []
+
+
 def test_run_dispatches_to_receive_approve_reject_and_exits_on_zero(tmp_path):
     controller, order_repo, sample_repo, queue_repo, view = _make_controller(
         tmp_path,

@@ -47,6 +47,17 @@ class OrderRepository:
     def all(self) -> List[Order]:
         return self._repo.list_all()
 
+    def sum_confirmed_quantity(self, sample_id: int, exclude_order_id: Optional[int] = None) -> int:
+        """해당 시료에 대해 CONFIRMED됐지만 아직 출고되지 않은 주문의
+        수량 합. 재고 충분/부족 판단 시 다른 주문이 이미 물려있는
+        수량을 제외하기 위해 사용한다."""
+        return sum(
+            o.quantity for o in self._repo.list_all()
+            if o.sample_id == sample_id
+            and o.status == OrderStatus.CONFIRMED
+            and o.order_id != exclude_order_id
+        )
+
     def save(self, order: Order) -> None:
         """change_status 등으로 변경된 주문을 영속화한다."""
         self._repo.save(order)

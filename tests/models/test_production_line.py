@@ -246,3 +246,30 @@ def test_sync_still_starts_production_when_stock_remains_insufficient(tmp_path):
     item = queue_repo.all()[0]
     assert item.started_at == _fmt(now)
     assert order_repo.find_by_id(order.order_id).status == OrderStatus.PRODUCING
+
+
+def test_sync_starts_production_when_available_stock_after_other_confirmed_demand_is_insufficient(tmp_path):
+    """order1(100개, target 200)이 완료되어 재고가 200이 되더라도, 그
+    100개는 아직 출고되지 않은 order1의 몫이므로 order2(150개)에게
+    가용한 재고는 100뿐이다. 100 < 150이므로 order2는 스킵되지 않고
+    생산이 시작돼야 한다 (Phase 10 수정에서는 놓쳤던 케이스)."""
+    order_repo, sample_repo, queue_repo = _make_repos(tmp_path)
+    sample_repo.add(1, "Sample1", 1.0, 0.5)
+    order1 = _add_producing_order(order_repo, 1, quantity=100)
+    order2 = _add_producing_order(order_repo, 1, quantity=150)
+    start = datetime(2026, 1, 1, 0, 0)
+    _enqueue(queue_repo, order1.order_id, 1, target_qty=200, total_production_time=200.0,
+             enqueued_at="2026-01-01 00:00", started_at=_fmt(start),
+             finished_at=_fmt(start + timedelta(minutes=200)))
+    _enqueue(queue_repo, order2.order_id, 1, target_qty=300, total_production_time=300.0,
+             enqueued_at="2026-01-01 00:01")
+    line = ProductionLine(order_repo, sample_repo, queue_repo)
+    now = start + timedelta(minutes=200)
+
+    line.sync(now)
+
+    assert order_repo.find_by_id(order1.order_id).status == OrderStatus.CONFIRMED
+    assert order_repo.find_by_id(order2.order_id).status == OrderStatus.PRODUCING
+    item2 = [i for i in queue_repo.all() if i.order_id == order2.order_id][0]
+    assert item2.started_at == _fmt(now)  # 스킵되지 않고 생산이 시작됨
+    assert sample_repo.find_by_id(1).stock_qty == 200  # order2 생산은 아직 완료 전

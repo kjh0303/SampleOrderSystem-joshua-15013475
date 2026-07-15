@@ -192,9 +192,31 @@ Phase 0~9 완료 후 수동 동작 검증 중 발견: 대기 중인 생산 큐 �
   전체 스위트 79개 clean, 커버리지 100% 유지, 사용자 시나리오 재현 검증
   (재고 200에서 멈춤, 300이 되지 않음) ✅
 
+### Phase 11. 동작 검증 중 발견된 버그 수정 — 미출고 CONFIRMED 수량을 재고 판단에서 제외 (완료)
+
+검증 중 발견: 주문 승인(및 대기 항목 시작 직전 재고 재확인, Phase 10)
+시 재고 충분 여부를 판단할 때 `sample.stock_qty`를 그대로 사용하고 있어,
+**이미 CONFIRMED됐지만 아직 출고(RELEASE)되지 않은 다른 주문의 수량**을
+전혀 감안하지 않았다. 예: 주문1(100개) 생산 완료로 재고 200, 주문1은
+아직 출고 전인데 이 상태에서 주문2(101개)가 오면 실제로 "즉시 쓸 수 있는"
+재고는 200-100=100개뿐이라 101개는 부족(→ PRODUCING이어야 함)한데,
+기존 로직은 재고 200 전체와 비교해 충분(CONFIRMED)하다고 잘못 판단했다.
+
+- `OrderRepository`에 `sum_confirmed_quantity(sample_id, exclude_order_id)`
+  추가 — 해당 시료에 대해 아직 출고되지 않은(CONFIRMED) 다른 주문들의
+  수량 합을 구한다
+- `OrderController.approve_order`와 `ProductionLine`의 대기 항목 시작 직전
+  재확인 로직(Phase 10) 모두, "가용 재고 = `stock_qty` - 다른 CONFIRMED
+  주문 수량 합"을 기준으로 충분/부족을 판단하도록 수정
+- 부족 시 `target_qty` 계산도 가용 재고 기준 부족분으로 계산
+- 상세 Plan: [plans/phase11-account-for-unshipped-confirmed-demand.md](./plans/phase11-account-for-unshipped-confirmed-demand.md)
+- DoD: 단위 테스트 6개 추가, 전체 스위트 84개 clean, 커버리지 100% 유지,
+  사용자 제보 시나리오(주문1 100개 완료 후 재고 200, 주문2 101개 →
+  target_qty=2로 PRODUCING) 재현 검증 ✅
+
 ---
 
-**모든 Phase(0~10) 완료.**
+**모든 Phase(0~11) 완료.**
 
 ## 진행 상태
 
@@ -211,3 +233,4 @@ Phase 0~9 완료 후 수동 동작 검증 중 발견: 대기 중인 생산 큐 �
 | 8. 콘솔 UI 통합 | 완료 (통합 테스트 2개) |
 | 9. 커버리지 기반 리팩토링 | 완료 (models/controllers 커버리지 100%) |
 | 10. 재고 충분 시 생산 스킵 버그 수정 | 완료 (단위 테스트 3개 추가) |
+| 11. 미출고 CONFIRMED 수량 반영 버그 수정 | 완료 (단위 테스트 6개 추가) |
