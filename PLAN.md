@@ -117,11 +117,17 @@
 - 상세 Plan: [plans/phase6-shipment.md](./plans/phase6-shipment.md)
 - DoD: 출고 처리 단위 테스트 4개 통과 ✅
 
-### Phase 7. 모니터링
+### Phase 7. 모니터링 (완료)
 
-- 상태별 주문량 확인 (REJECTED 제외)
-- 재고량 확인 및 여유/부족/고갈 상태 판정
-- DoD: 상태 판정 로직 단위 테스트 통과
+- 상태별 주문량 확인 (REJECTED 제외, 기존 `find_valid_orders` 재사용)
+- 재고량 확인 및 여유/부족/고갈 상태 판정 구현
+  - 고갈: `stock_qty == 0` (최우선 판정)
+  - 부족: `stock_qty <` 미출고 수요 합계(`RESERVED`+`PRODUCING`+`CONFIRMED` 주문 수량)
+  - 여유: 그 외
+- `show_stock_volume`에도 `ProductionLine.sync()` 훅 추가 (Phase 5
+  follow-up에서 남겨둔 재검토 항목 반영)
+- 상세 Plan: [plans/phase7-monitoring.md](./plans/phase7-monitoring.md)
+- DoD: 단위 테스트 5개 통과 + 콘솔 수동 확인(고갈 표시) ✅
 
 ### Phase 8. 콘솔 UI 통합
 
@@ -140,5 +146,5 @@
 | 4. 주문 | 완료 (단위 테스트 7개, 재고 분기 로직 구현) |
 | 5. 생산 라인 | 완료 (단위 테스트 11개) |
 | 6. 출고 처리 | 완료 (단위 테스트 4개) |
-| 7. 모니터링 | 초안 있음 (여유/부족/고갈 판정 미구현) |
+| 7. 모니터링 | 완료 (단위 테스트 5개) |
 | 8. 콘솔 UI 통합 | 초안 있음 (메뉴 연결은 되어 있음) |

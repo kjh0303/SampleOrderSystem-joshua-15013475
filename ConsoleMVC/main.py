@@ -26,7 +26,7 @@ def main() -> None:
 
     sample_controller = SampleController(sample_repo, production_line, SampleView())
     order_controller = OrderController(order_repo, sample_repo, queue_repo, production_line, OrderView())
-    monitoring_controller = MonitoringController(order_repo, sample_repo, MonitoringView())
+    monitoring_controller = MonitoringController(order_repo, sample_repo, production_line, MonitoringView())
     shipment_controller = ShipmentController(order_repo, sample_repo, production_line, ShipmentView())
     production_controller = ProductionController(production_line, order_repo, sample_repo, ProductionView())
 

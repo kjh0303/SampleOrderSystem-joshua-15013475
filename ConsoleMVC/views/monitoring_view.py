@@ -1,7 +1,6 @@
 from typing import Dict, List
 
 from ConsoleMVC.models.order import Order
-from ConsoleMVC.models.sample import Sample
 
 _DISPLAY_STATUS_ORDER = ["RESERVED", "CONFIRMED", "PRODUCING", "RELEASE"]
 
@@ -32,14 +31,14 @@ class MonitoringView:
             for o in status_orders:
                 print(f"  주문 #{o.order_id} | 시료ID {o.sample_id} | {o.customer_name} | 수량 {o.quantity}")
 
-    def show_stock_status(self, samples: List[Sample]) -> None:
-        # TODO(PLAN.md Phase 7): 주문 대비 여유/부족/고갈 상태 판정은 아직 없음.
+    def show_stock_status(self, rows) -> None:
+        """rows: (Sample, 상태 라벨) 튜플 목록. 상태 라벨 = 여유 / 부족 / 고갈"""
         print("\n[시료별 재고 현황]")
-        if not samples:
+        if not rows:
             print("등록된 시료가 없습니다.")
             return
-        for s in samples:
-            print(f"- {s.name} (ID:{s.sample_id}): 재고 {s.stock_qty}개")
+        for sample, status in rows:
+            print(f"- {sample.name} (ID:{sample.sample_id}): 재고 {sample.stock_qty}개 [{status}]")
 
     def show_message(self, message: str) -> None:
         print(message)
