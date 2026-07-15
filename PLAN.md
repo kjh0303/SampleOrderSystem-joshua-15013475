@@ -60,10 +60,14 @@
 - 상세 Plan: [plans/phase2-domain-model-repository-tests.md](./plans/phase2-domain-model-repository-tests.md)
 - DoD: 24개 테스트 통과, 커버리지 3%→35% ✅
 
-### Phase 3. 시료 관리
+### Phase 3. 시료 관리 (완료)
 
-- 시료 등록 / 조회(재고 수량 포함) / 검색
-- DoD: 등록·조회·검색 단위 테스트 통과, 콘솔 메뉴 연동
+- `SampleController`(등록/조회/검색) 단위 테스트 5개 작성
+  (`tests/controllers/test_sample_controller.py`), `FakeSampleView` 테스트
+  더블 사용
+- 상세 Plan: [plans/phase3-sample-management.md](./plans/phase3-sample-management.md)
+- DoD: 5개 테스트 통과 (기존 구현이 문서와 일치해 즉시 통과, 콘솔 메뉴는
+  Phase 0 이관 시점에 이미 연동됨) ✅
 
 ### Phase 4. 주문 (접수 / 승인 / 거절)
 
@@ -118,7 +122,7 @@
 | 0. 기존 PoC 정합성 점검 | 완료 |
 | 1. 프로젝트 세팅 | 완료 (pytest 하네스 구성 완료) |
 | 2. 도메인 모델 & 데이터 저장소 | 완료 (단위 테스트 24개) |
-| 3. 시료 관리 | 초안 있음 (PoC 이관 완료, 테스트 없음) |
+| 3. 시료 관리 | 완료 (단위 테스트 5개) |
 | 4. 주문 | 초안 있음 (접수/거절만, 승인 분기 로직 미구현) |
 | 5. 생산 라인 | 미착수 (placeholder만 존재) |
 | 6. 출고 처리 | 초안 있음 (PoC 이관 완료, 테스트 없음) |
