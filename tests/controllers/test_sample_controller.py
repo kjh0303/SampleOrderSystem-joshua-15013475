@@ -12,11 +12,15 @@ TIME_FMT = "%Y-%m-%d %H:%M"
 
 
 class FakeSampleView:
-    def __init__(self, new_sample_input=None, search_keyword=""):
+    def __init__(self, new_sample_input=None, search_keyword="", menu_choices=None):
         self._new_sample_input = new_sample_input
         self._search_keyword = search_keyword
+        self._menu_choices = iter(menu_choices or [])
         self.messages = []
         self.shown_samples = None
+
+    def show_menu(self):
+        return next(self._menu_choices)
 
     def input_new_sample(self):
         return self._new_sample_input
@@ -143,3 +147,27 @@ def test_search_samples_reflects_completed_production_via_sync(tmp_path):
 
     assert order_repo.find_by_id(order.order_id).status == OrderStatus.CONFIRMED
     assert view.shown_samples[0].stock_qty == 4
+
+
+def test_run_dispatches_to_register_list_search_and_exits_on_zero(tmp_path):
+    controller, repo, order_repo, queue_repo, view = _make_controller(
+        tmp_path,
+        new_sample_input=(1, "WaferA", 2.0, 0.9),
+        search_keyword="wafer",
+        menu_choices=["1", "2", "3", "0"],
+    )
+
+    controller.run()
+
+    assert repo.find_by_id(1) is not None
+    assert view.shown_samples is not None
+
+
+def test_run_shows_message_on_invalid_choice(tmp_path):
+    controller, repo, order_repo, queue_repo, view = _make_controller(
+        tmp_path, menu_choices=["9", "0"]
+    )
+
+    controller.run()
+
+    assert "잘못된 입력입니다." in view.messages

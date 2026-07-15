@@ -2,3 +2,10 @@
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "--cov=ConsoleMVC --cov-report=term-missing"
+
+[tool.coverage.run]
+omit = [
+    "ConsoleMVC/main.py",
+    "ConsoleMVC/scripts/*",
+    "ConsoleMVC/views/*",
+]

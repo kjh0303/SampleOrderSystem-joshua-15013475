@@ -12,9 +12,14 @@ TIME_FMT = "%Y-%m-%d %H:%M"
 
 
 class FakeMonitoringView:
-    def __init__(self):
+    def __init__(self, menu_choices=None):
+        self._menu_choices = iter(menu_choices or [])
         self.shown_orders = None
         self.shown_stock_rows = None
+        self.messages = []
+
+    def show_menu(self):
+        return next(self._menu_choices)
 
     def show_orders_by_status(self, orders):
         self.shown_orders = orders
@@ -23,15 +28,15 @@ class FakeMonitoringView:
         self.shown_stock_rows = rows
 
     def show_message(self, message):
-        pass
+        self.messages.append(message)
 
 
-def _make_controller(tmp_path):
+def _make_controller(tmp_path, **view_kwargs):
     order_repo = OrderRepository(tmp_path / "orders.json")
     sample_repo = SampleRepository(tmp_path / "samples.json")
     queue_repo = ProductionQueueRepository(tmp_path / "queue.json")
     production_line = ProductionLine(order_repo, sample_repo, queue_repo)
-    view = FakeMonitoringView()
+    view = FakeMonitoringView(**view_kwargs)
     controller = MonitoringController(order_repo, sample_repo, production_line, view)
     return controller, order_repo, sample_repo, queue_repo, view
 
@@ -110,3 +115,24 @@ def test_show_stock_volume_syncs_production_before_computing_status(tmp_path):
     rows = {s.sample_id: status for s, status in view.shown_stock_rows}
     # 생산 완료로 재고 10, 남은 수요(CONFIRMED 10)와 같아 여유로 판정된다.
     assert rows[1] == "여유"
+
+
+def test_run_dispatches_to_order_volume_and_stock_volume_and_exits_on_zero(tmp_path):
+    controller, order_repo, sample_repo, queue_repo, view = _make_controller(
+        tmp_path, menu_choices=["1", "2", "0"]
+    )
+
+    controller.run()
+
+    assert view.shown_orders is not None
+    assert view.shown_stock_rows is not None
+
+
+def test_run_shows_message_on_invalid_choice(tmp_path):
+    controller, order_repo, sample_repo, queue_repo, view = _make_controller(
+        tmp_path, menu_choices=["9", "0"]
+    )
+
+    controller.run()
+
+    assert "잘못된 입력입니다." in view.messages

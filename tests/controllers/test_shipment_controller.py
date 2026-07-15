@@ -12,10 +12,14 @@ TIME_FMT = "%Y-%m-%d %H:%M"
 
 
 class FakeShipmentView:
-    def __init__(self, order_id_input=None):
+    def __init__(self, order_id_input=None, menu_choices=None):
         self.order_id_input = order_id_input
+        self._menu_choices = iter(menu_choices or [])
         self.messages = []
         self.shown_orders = None
+
+    def show_menu(self):
+        return next(self._menu_choices)
 
     def input_order_id(self):
         return self.order_id_input
@@ -27,12 +31,12 @@ class FakeShipmentView:
         self.messages.append(message)
 
 
-def _make_controller(tmp_path, order_id_input=None):
+def _make_controller(tmp_path, order_id_input=None, menu_choices=None):
     order_repo = OrderRepository(tmp_path / "orders.json")
     sample_repo = SampleRepository(tmp_path / "samples.json")
     queue_repo = ProductionQueueRepository(tmp_path / "queue.json")
     production_line = ProductionLine(order_repo, sample_repo, queue_repo)
-    view = FakeShipmentView(order_id_input=order_id_input)
+    view = FakeShipmentView(order_id_input=order_id_input, menu_choices=menu_choices)
     controller = ShipmentController(order_repo, sample_repo, production_line, view)
     return controller, order_repo, sample_repo, view
 
@@ -116,3 +120,25 @@ def test_ship_order_reflects_completed_production_via_sync(tmp_path):
     updated = order_repo.find_by_id(order.order_id)
     assert updated.status == OrderStatus.RELEASE
     assert view.messages[-1] == f"[출고 완료] 주문 #{order.order_id} -> 상태 RELEASE 전환"
+
+
+def test_run_dispatches_to_ship_order_and_exits_on_zero(tmp_path):
+    controller, order_repo, sample_repo, view = _make_controller(
+        tmp_path, order_id_input=None, menu_choices=["1", "0"]
+    )
+
+    controller.run()
+
+    # order_id_input이 없어(None) 취소 처리되지만, ship_order가 실제로
+    # 호출됐는지는 취소 메시지로 확인할 수 있다.
+    assert "출고가 취소되었습니다." in view.messages
+
+
+def test_run_shows_message_on_invalid_choice(tmp_path):
+    controller, order_repo, sample_repo, view = _make_controller(
+        tmp_path, menu_choices=["9", "0"]
+    )
+
+    controller.run()
+
+    assert "잘못된 입력입니다." in view.messages

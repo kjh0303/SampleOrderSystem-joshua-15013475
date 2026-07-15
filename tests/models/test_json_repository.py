@@ -1,3 +1,5 @@
+import pytest
+
 from ConsoleMVC.models.json_repository import JsonRepository
 from ConsoleMVC.models.production_queue import ProductionQueue
 
@@ -50,16 +52,6 @@ def test_list_all_returns_all_created_records(tmp_path):
     assert {i.queue_id for i in all_items} == {"q1", "q2"}
 
 
-def test_update_persists_partial_changes(tmp_path):
-    repo = _make_repo(tmp_path)
-    repo.create(_make_item(queue_id="q1", target_qty=10))
-
-    updated = repo.update("q1", target_qty=99)
-
-    assert updated.target_qty == 99
-    assert repo.get("q1").target_qty == 99
-
-
 def test_save_overwrites_whole_record(tmp_path):
     repo = _make_repo(tmp_path)
     item = repo.create(_make_item(queue_id="q1"))
@@ -68,6 +60,14 @@ def test_save_overwrites_whole_record(tmp_path):
     repo.save(item)
 
     assert repo.get("q1").started_at == "2026-01-01 00:00"
+
+
+def test_save_raises_key_error_when_record_does_not_exist(tmp_path):
+    repo = _make_repo(tmp_path)
+    missing_item = _make_item(queue_id="missing")
+
+    with pytest.raises(KeyError):
+        repo.save(missing_item)
 
 
 def test_delete_removes_record_and_returns_true(tmp_path):

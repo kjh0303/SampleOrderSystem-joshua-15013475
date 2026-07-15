@@ -8,10 +8,14 @@ from ConsoleMVC.models.sample_repository import SampleRepository
 
 
 class FakeProductionView:
-    def __init__(self):
+    def __init__(self, menu_choices=None):
+        self._menu_choices = iter(menu_choices or [])
         self.current_status = None
         self.messages = []
         self.queue_rows = None
+
+    def show_menu(self):
+        return next(self._menu_choices)
 
     def show_current_status(self, item, order, sample):
         self.current_status = (item, order, sample)
@@ -23,12 +27,12 @@ class FakeProductionView:
         self.messages.append(message)
 
 
-def _make_controller(tmp_path):
+def _make_controller(tmp_path, **view_kwargs):
     order_repo = OrderRepository(tmp_path / "orders.json")
     sample_repo = SampleRepository(tmp_path / "samples.json")
     queue_repo = ProductionQueueRepository(tmp_path / "queue.json")
     production_line = ProductionLine(order_repo, sample_repo, queue_repo)
-    view = FakeProductionView()
+    view = FakeProductionView(**view_kwargs)
     controller = ProductionController(production_line, order_repo, sample_repo, view)
     return controller, order_repo, sample_repo, queue_repo, view
 
@@ -84,3 +88,33 @@ def test_show_waiting_orders_displays_items_in_fifo_order(tmp_path):
     # sync()가 첫 번째 항목을 즉시 시작시키므로, 대기열에는 두 번째만 남는다
     assert view.queue_rows is not None
     assert [row[1].order_id for row in view.queue_rows] == [order2.order_id]
+
+
+def test_show_waiting_orders_shows_message_when_queue_is_empty(tmp_path):
+    controller, order_repo, sample_repo, queue_repo, view = _make_controller(tmp_path)
+
+    controller.show_waiting_orders()
+
+    assert view.messages == ["대기 중인 생산 주문이 없습니다."]
+
+
+def test_run_dispatches_to_status_and_waiting_and_exits_on_zero(tmp_path):
+    controller, order_repo, sample_repo, queue_repo, view = _make_controller(
+        tmp_path, menu_choices=["1", "2", "0"]
+    )
+
+    controller.run()
+
+    # 큐가 비어 있으므로 두 동작 모두 "없음" 메시지를 남긴다.
+    assert "현재 생산 중인 주문이 없습니다." in view.messages
+    assert "대기 중인 생산 주문이 없습니다." in view.messages
+
+
+def test_run_shows_message_on_invalid_choice(tmp_path):
+    controller, order_repo, sample_repo, queue_repo, view = _make_controller(
+        tmp_path, menu_choices=["9", "0"]
+    )
+
+    controller.run()
+
+    assert "잘못된 입력입니다." in view.messages

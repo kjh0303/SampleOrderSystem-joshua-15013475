@@ -143,9 +143,40 @@
 - 상세 Plan: [plans/phase8-console-integration.md](./plans/phase8-console-integration.md)
 - DoD: 통합 테스트 2개 통과 + 콘솔 전체 시나리오 수동 확인 ✅
 
+### Phase 9. 커버리지 기반 리팩토링 (완료)
+
+Phase 0~8을 마친 시점의 커버리지(65%, TOTAL 726 stmts / 253 miss)를
+검토해, 커버리지가 없는 코드마다 "정말 필요한 코드인지"를 판단한다.
+불필요하면 삭제하고, 필요하면 테스트를 보강한다 — 커버리지 숫자를
+올리는 것 자체가 목적이 아니라, 미검증 코드/죽은 코드를 솎아내는 것이
+목적이다.
+
+**분석 결과 (이번 세션에서 확인)**
+
+| 대상 | 미커버 내용 | 판단 |
+|---|---|---|
+| 5개 컨트롤러의 `run()` | 메뉴 선택 dispatch 루프 전체 | **필요함** — `main.py`가 실제로 호출하는 코드. 테스트 보강 |
+| `order_controller.py` 취소 분기(접수/승인/거절) | `input_new_order`/`input_order_id`가 `None`을 반환하는 취소 경로 | **필요함** — 사용자가 실제로 "0: 취소"를 누르는 경로. 테스트 보강 |
+| `production_controller.show_waiting_orders`의 "대기 없음" 분기 | 큐가 비었을 때 메시지 분기 | **필요함** — 테스트 보강 |
+| `ConsoleMVC/main.py` | 전체(0%) | **필요함**(진입점) — 하지만 `input()` 루프를 직접 단위 테스트하는 것은 비용 대비 가치가 낮음. 커버리지 측정 대상에서 의도적으로 제외(omit) |
+| `ConsoleMVC/scripts/generate_dummy_data.py` | 전체(0%) | **필요함**(수동 테스트용 개발 도구) — 다만 랜덤 더미 데이터 생성기 자체를 단위 테스트하는 것은 가치가 낮음. 커버리지 측정 대상에서 제외(omit) |
+| `views/*.py` (25~32%) | `print`/`input` 위주 I/O 코드 | Phase 3에서 이미 "로직이 없어 테스트 생략"으로 결정된 영역 — 재확인만 하고 커버리지 omit 설정으로 명시 |
+
+- 구현 범위: `pyproject.toml` 커버리지 `omit` 설정(`main.py`,
+  `ConsoleMVC/scripts/*`, `ConsoleMVC/views/*`), 각 컨트롤러 `run()` 테스트,
+  `order_controller` 취소 분기 3곳 + `production_controller` "대기 없음"
+  분기 테스트를 기존 `tests/controllers/` 파일들에 추가
+- 진행 중 추가로 발견: `JsonRepository.update()`가 앱 어디서도 호출되지
+  않는 죽은 코드임을 확인(`SampleRepository`/`OrderRepository`/
+  `ProductionQueueRepository` 모두 `save()`만 사용) → 삭제하고 관련 테스트도
+  제거. 대신 실제로 쓰이는 `save()`의 미발견(KeyError) 분기 테스트를 추가
+- 범위 밖: 새로운 기능 추가, views 자체 테스트 작성(Phase 3 결정 유지)
+- DoD: 테스트 76개 통과 + omit 적용 후 controllers/models 커버리지 **100%** ✅
+- 상세 Plan: [plans/phase9-coverage-refactor.md](./plans/phase9-coverage-refactor.md)
+
 ---
 
-**모든 Phase(0~8) 완료.**
+**모든 Phase(0~9) 완료.**
 
 ## 진행 상태
 
@@ -160,3 +191,4 @@
 | 6. 출고 처리 | 완료 (단위 테스트 4개) |
 | 7. 모니터링 | 완료 (단위 테스트 5개) |
 | 8. 콘솔 UI 통합 | 완료 (통합 테스트 2개) |
+| 9. 커버리지 기반 리팩토링 | 완료 (models/controllers 커버리지 100%) |

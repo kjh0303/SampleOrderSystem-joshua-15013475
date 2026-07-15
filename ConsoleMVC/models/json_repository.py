@@ -53,16 +53,6 @@ class JsonRepository(Generic[T]):
     def exists(self, entity_id) -> bool:
         return self.get(entity_id) is not None
 
-    # ---- Update ------------------------------------------------------------
-    def update(self, entity_id, **changes) -> Optional[T]:
-        records = self._read_all()
-        for r in records:
-            if r[self._id_field] == entity_id:
-                r.update({k: v for k, v in changes.items() if v is not None})
-                self._write_all(records)
-                return self._model_cls.from_dict(r)
-        return None
-
     def save(self, entity: T) -> T:
         """entity 전체를 그대로 덮어써 저장한다 (mutate 후 영속화할 때 사용)."""
         entity_id = getattr(entity, self._id_field)

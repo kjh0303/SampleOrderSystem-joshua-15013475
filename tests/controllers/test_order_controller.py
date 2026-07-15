@@ -9,11 +9,15 @@ from ConsoleMVC.models.sample_repository import SampleRepository
 
 
 class FakeOrderView:
-    def __init__(self, new_order_input=None, order_id_input=None):
+    def __init__(self, new_order_input=None, order_id_input=None, menu_choices=None):
         self.new_order_input = new_order_input
         self.order_id_input = order_id_input
+        self._menu_choices = iter(menu_choices or [])
         self.messages = []
         self.shown_orders = None
+
+    def show_menu(self):
+        return next(self._menu_choices)
 
     def input_new_order(self):
         return self.new_order_input
@@ -169,3 +173,63 @@ def test_reject_order_shows_message_when_order_not_found_or_not_reserved(tmp_pat
     controller.reject_order()
 
     assert view.messages[-1] == "거절할 수 없는 주문입니다."
+
+
+def test_receive_order_shows_cancel_message_when_input_is_none(tmp_path):
+    controller, order_repo, sample_repo, queue_repo, view = _make_controller(
+        tmp_path, new_order_input=None
+    )
+
+    controller.receive_order()
+
+    assert order_repo.all() == []
+    assert view.messages == ["접수가 취소되었습니다."]
+
+
+def test_approve_order_shows_cancel_message_when_order_id_input_is_none(tmp_path):
+    controller, order_repo, sample_repo, queue_repo, view = _make_controller(
+        tmp_path, order_id_input=None
+    )
+    order_repo.add(1, "CustA", 10)
+
+    controller.approve_order()
+
+    assert view.messages == ["승인이 취소되었습니다."]
+
+
+def test_reject_order_shows_cancel_message_when_order_id_input_is_none(tmp_path):
+    controller, order_repo, sample_repo, queue_repo, view = _make_controller(
+        tmp_path, order_id_input=None
+    )
+    order_repo.add(1, "CustA", 10)
+
+    controller.reject_order()
+
+    assert view.messages == ["거절이 취소되었습니다."]
+
+
+def test_run_dispatches_to_receive_approve_reject_and_exits_on_zero(tmp_path):
+    controller, order_repo, sample_repo, queue_repo, view = _make_controller(
+        tmp_path,
+        new_order_input=(1, "CustA", 10),
+        menu_choices=["1", "2", "3", "0"],
+    )
+    _add_sample_with_stock(sample_repo, 1, "WaferA", 2.0, 0.9, stock_qty=20)
+
+    controller.run()
+
+    orders = order_repo.all()
+    assert len(orders) == 1  # receive_order로 하나 생성됨
+    # 승인 단계에서 order_id_input이 없어(None) 취소 처리, 거절도 마찬가지라
+    # 생성된 주문은 여전히 RESERVED 상태로 남는다.
+    assert orders[0].status == OrderStatus.RESERVED
+
+
+def test_run_shows_message_on_invalid_choice(tmp_path):
+    controller, order_repo, sample_repo, queue_repo, view = _make_controller(
+        tmp_path, menu_choices=["9", "0"]
+    )
+
+    controller.run()
+
+    assert "잘못된 입력입니다." in view.messages
