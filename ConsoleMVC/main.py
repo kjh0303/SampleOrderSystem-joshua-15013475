@@ -5,6 +5,7 @@ from ConsoleMVC.controllers.sample_controller import SampleController
 from ConsoleMVC.controllers.shipment_controller import ShipmentController
 from ConsoleMVC.models.order_repository import OrderRepository
 from ConsoleMVC.models.production_line import ProductionLine
+from ConsoleMVC.models.production_queue_repository import ProductionQueueRepository
 from ConsoleMVC.models.sample_repository import SampleRepository
 from ConsoleMVC.views.main_view import MainView
 from ConsoleMVC.views.monitoring_view import MonitoringView
@@ -15,15 +16,16 @@ from ConsoleMVC.views.shipment_view import ShipmentView
 
 
 def main() -> None:
-    # 공유 저장소 (메모리 기반)
+    # 공유 저장소 (JSON 파일 기반)
     sample_repo = SampleRepository()
     order_repo = OrderRepository()
+    queue_repo = ProductionQueueRepository()
     production_line = ProductionLine()
 
     main_view = MainView()
 
     sample_controller = SampleController(sample_repo, SampleView())
-    order_controller = OrderController(order_repo, sample_repo, production_line, OrderView())
+    order_controller = OrderController(order_repo, sample_repo, queue_repo, OrderView())
     monitoring_controller = MonitoringController(order_repo, sample_repo, MonitoringView())
     shipment_controller = ShipmentController(order_repo, sample_repo, ShipmentView())
     production_controller = ProductionController(production_line, order_repo, sample_repo, ProductionView())

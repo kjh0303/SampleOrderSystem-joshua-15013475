@@ -69,13 +69,17 @@
 - DoD: 5개 테스트 통과 (기존 구현이 문서와 일치해 즉시 통과, 콘솔 메뉴는
   Phase 0 이관 시점에 이미 연동됨) ✅
 
-### Phase 4. 주문 (접수 / 승인 / 거절)
+### Phase 4. 주문 (접수 / 승인 / 거절) (완료)
 
-- 시료 예약(주문 생성, `RESERVED`)
-- 접수된 주문 목록 표시
-- 주문 승인: 재고 충분/부족 분기 로직 (`CONFIRMED` / `PRODUCING`)
-- 주문 거절 (`REJECTED`)
-- DoD: 승인 시 재고 분기 로직에 대한 단위 테스트 통과
+- `OrderController.approve_order`에 재고 충분/부족 분기 구현: 충분하면
+  즉시 `CONFIRMED`, 부족하면 `target_qty = ceil(부족분/수율)`,
+  `total_production_time = 평균생산시간 * target_qty` 계산 후
+  `ProductionQueue`에 등록(`started_at`은 아직 미설정)하고 `PRODUCING` 전환
+- 생성자 의존성을 `ProductionLine`(placeholder) → `ProductionQueueRepository`로
+  교체, `main.py` 의존성 주입 갱신
+- `receive_order`/`reject_order` 포함 단위 테스트 7개 작성
+- 상세 Plan: [plans/phase4-order-approval.md](./plans/phase4-order-approval.md)
+- DoD: 7개 테스트 통과 + 콘솔 스모크 테스트로 실제 분기 확인 ✅
 
 ### Phase 5. 생산 라인
 
@@ -123,7 +127,7 @@
 | 1. 프로젝트 세팅 | 완료 (pytest 하네스 구성 완료) |
 | 2. 도메인 모델 & 데이터 저장소 | 완료 (단위 테스트 24개) |
 | 3. 시료 관리 | 완료 (단위 테스트 5개) |
-| 4. 주문 | 초안 있음 (접수/거절만, 승인 분기 로직 미구현) |
+| 4. 주문 | 완료 (단위 테스트 7개, 재고 분기 로직 구현) |
 | 5. 생산 라인 | 미착수 (placeholder만 존재) |
 | 6. 출고 처리 | 초안 있음 (PoC 이관 완료, 테스트 없음) |
 | 7. 모니터링 | 초안 있음 (여유/부족/고갈 판정 미구현) |

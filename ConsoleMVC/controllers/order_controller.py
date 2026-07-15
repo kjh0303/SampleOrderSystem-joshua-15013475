@@ -1,6 +1,9 @@
+import math
+
 from ConsoleMVC.models.order import OrderStatus
 from ConsoleMVC.models.order_repository import OrderRepository
-from ConsoleMVC.models.production_line import ProductionLine
+from ConsoleMVC.models.production_queue import ProductionQueue
+from ConsoleMVC.models.production_queue_repository import ProductionQueueRepository
 from ConsoleMVC.models.sample_repository import SampleRepository
 from ConsoleMVC.views.order_view import OrderView
 
@@ -12,12 +15,12 @@ class OrderController:
         self,
         order_repo: OrderRepository,
         sample_repo: SampleRepository,
-        production_line: ProductionLine,
+        queue_repo: ProductionQueueRepository,
         view: OrderView,
     ):
         self._order_repo = order_repo
         self._sample_repo = sample_repo
-        self._production_line = production_line
+        self._queue_repo = queue_repo
         self._view = view
 
     def receive_order(self) -> None:
@@ -34,8 +37,12 @@ class OrderController:
         self._view.show_message(f"[접수 완료] 주문 #{order.order_id}")
 
     def approve_order(self) -> None:
-        """재고 충분/부족에 따른 CONFIRMED/PRODUCING 분기는 PLAN.md Phase 4에서
-        별도 Plan.md(RED-GREEN-REVIEW)로 구현한다. 여기서는 아직 구현하지 않는다."""
+        """재고가 충분하면 즉시 CONFIRMED로, 부족하면 부족분을 수율로 나눈
+        실 생산량을 ProductionQueue에 등록하고 PRODUCING으로 전환한다.
+
+        started_at/finished_at 설정과 생산 완료 판단(sync_production_state),
+        FIFO 직렬 처리는 PLAN.md Phase 5에서 구현한다.
+        """
         self._view.show_orders(self._order_repo.find_by_status(OrderStatus.RESERVED))
         order_id = self._view.input_order_id("승인")
         if order_id is None:
@@ -45,7 +52,28 @@ class OrderController:
         if order is None or order.status != OrderStatus.RESERVED:
             self._view.show_message("승인할 수 없는 주문입니다.")
             return
-        raise NotImplementedError("주문 승인의 재고 분기 로직은 PLAN.md Phase 4에서 구현 예정")
+
+        sample = self._sample_repo.find_by_id(order.sample_id)
+        if sample.stock_qty >= order.quantity:
+            order.change_status(OrderStatus.CONFIRMED)
+            self._order_repo.save(order)
+            self._view.show_message(f"[승인 완료] 주문 #{order.order_id} -> 재고 충분, CONFIRMED 전환")
+            return
+
+        shortage = order.quantity - sample.stock_qty
+        target_qty = math.ceil(shortage / sample.yield_rate)
+        total_production_time = sample.avg_production_time * target_qty
+        queue_item = ProductionQueue(
+            queue_id="",
+            order_id=order.order_id,
+            sample_id=sample.sample_id,
+            target_qty=target_qty,
+            total_production_time=total_production_time,
+        )
+        self._queue_repo.add(queue_item)
+        order.change_status(OrderStatus.PRODUCING)
+        self._order_repo.save(order)
+        self._view.show_message(f"[승인 완료] 주문 #{order.order_id} -> 재고 부족, 생산 대기열 등록")
 
     def reject_order(self) -> None:
         self._view.show_orders(self._order_repo.find_by_status(OrderStatus.RESERVED))
