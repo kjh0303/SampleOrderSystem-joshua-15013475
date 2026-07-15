@@ -37,10 +37,16 @@
 - 디렉토리 구조는 [CLAUDE.md](./CLAUDE.md#디렉토리-구조) 참고.
 - DoD: 불일치 항목 목록과 재사용 여부에 대한 사용자 확인 완료 ✅
 
-### Phase 1. 프로젝트 세팅
+### Phase 1. 프로젝트 세팅 (완료)
 
-- 디렉토리 구조, `pytest` 테스트 하네스 구성
-- DoD: `pytest` 실행 시 (빈 테스트라도) 정상 동작
+- 루트 `pyproject.toml`에 pytest 설정 추가 (`testpaths = ["tests"]`,
+  `pythonpath = ["."]`)
+- `tests/test_harness_setup.py` 추가, `ConsoleMVC/__init__.py` 추가해
+  `ConsoleMVC.models...` 형태로 테스트에서 import 가능하도록 구성
+- `pytest-cov` 커버리지 설정 추가 (`addopts = "--cov=ConsoleMVC
+  --cov-report=term-missing"`) — `pytest` 실행 시 파일별 커버리지 표 자동 출력
+- 상세 Plan: [plans/phase1-project-setup.md](./plans/phase1-project-setup.md)
+- DoD: `pytest` 실행 시 정상 동작 + 커버리지 리포트 출력 ✅ (1 passed, TOTAL 3%)
 
 ### Phase 2. 도메인 모델 & 데이터 저장소
 
@@ -107,7 +113,7 @@
 | Phase | 상태 |
 |---|---|
 | 0. 기존 PoC 정합성 점검 | 완료 |
-| 1. 프로젝트 세팅 | 미착수 (pytest 하네스 없음) |
+| 1. 프로젝트 세팅 | 완료 (pytest 하네스 구성 완료) |
 | 2. 도메인 모델 & 데이터 저장소 | 초안 있음 (PoC 이관 완료, 테스트 없음) |
 | 3. 시료 관리 | 초안 있음 (PoC 이관 완료, 테스트 없음) |
 | 4. 주문 | 초안 있음 (접수/거절만, 승인 분기 로직 미구현) |
