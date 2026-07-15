@@ -108,13 +108,14 @@
 - 상세 Plan: [plans/phase5-followup-eager-start-and-sync-hooks.md](./plans/phase5-followup-eager-start-and-sync-hooks.md)
 - DoD: 신규/보강 테스트 8개 통과, 콘솔에서 승인 직후 즉시 시작 확인 ✅
 
-### Phase 6. 출고 처리
+### Phase 6. 출고 처리 (완료)
 
-- `CONFIRMED` 주문 출고 실행 → `RELEASE` 전환
-- (Phase 5 follow-up에서 sync 훅 배선 + 최소 테스트 1개는 이미 추가됨,
-  `tests/controllers/test_shipment_controller.py`) — 정상 출고/취소/잘못된
-  주문 등 나머지 케이스는 이번 Phase에서 보강
-- DoD: 출고 처리 단위 테스트 통과
+- `CONFIRMED` 주문 출고 실행 → `RELEASE` 전환. 기존 PoC 구현이 문서
+  규칙과 이미 일치해 프로덕션 코드 수정 없이 테스트만 추가
+- 정상 출고(재고 감소 + RELEASE 전환) / 취소 / 잘못된 주문 3개 테스트 추가
+  (sync 훅 반영 테스트는 Phase 5 follow-up에서 이미 작성됨)
+- 상세 Plan: [plans/phase6-shipment.md](./plans/phase6-shipment.md)
+- DoD: 출고 처리 단위 테스트 4개 통과 ✅
 
 ### Phase 7. 모니터링
 
@@ -138,6 +139,6 @@
 | 3. 시료 관리 | 완료 (단위 테스트 5개) |
 | 4. 주문 | 완료 (단위 테스트 7개, 재고 분기 로직 구현) |
 | 5. 생산 라인 | 완료 (단위 테스트 11개) |
-| 6. 출고 처리 | 초안 있음 (PoC 이관 완료, 테스트 없음) |
+| 6. 출고 처리 | 완료 (단위 테스트 4개) |
 | 7. 모니터링 | 초안 있음 (여유/부족/고갈 판정 미구현) |
 | 8. 콘솔 UI 통합 | 초안 있음 (메뉴 연결은 되어 있음) |
